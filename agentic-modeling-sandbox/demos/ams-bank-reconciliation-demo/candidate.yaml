@@ -1,0 +1,28 @@
+schema_version: ams/candidate-v1
+candidate_name: bank-recon-agent-candidate
+decomposition:
+  description: Agent-owned deterministic reconciliation implementation.
+  llm_modules: []
+  deterministic_components:
+  - id: reconcile
+    callable: src/reconciliation.py:predict
+    responsibility: Match bank and GL transactions and produce reconciliation results.
+  control_flow: reconcile
+validation:
+  checks:
+  - balance_reconciles
+  - unmatched_items_reported
+evaluation:
+  end_to_end_metric: bank_reconciliation_score
+  module_metrics: {}
+optimization:
+  targets: []
+  optimizer: external
+  notes: No LLM module in this candidate; optimize code architecture externally if
+    needed.
+artifacts:
+  source_roots:
+  - src
+  test_roots:
+  - tests
+  entrypoint: src/reconciliation.py:predict

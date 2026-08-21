@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Clone of an unrelated upstream project with its own git history.
+# Committing it from this repo would record a gitlink, not the files.
+/OpenSandbox/

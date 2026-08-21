@@ -1,0 +1,57 @@
+{
+  "schema_version": "ams/evaluation-v1",
+  "environment": "bank-reconciliation",
+  "candidate": "bank-recon-agent-candidate",
+  "split": "validation",
+  "case_count": 4,
+  "score": 1.0,
+  "minimum_score": 0.9,
+  "accepted": true,
+  "metrics": [
+    "numerical_accuracy",
+    "contract_compliance",
+    "validation_compliance"
+  ],
+  "cases": [
+    {
+      "id": "duplicate-amount",
+      "score": 1.0,
+      "metrics": {
+        "numerical_accuracy": 1.0,
+        "contract_compliance": 1.0,
+        "validation_compliance": 1.0
+      },
+      "status": "success"
+    },
+    {
+      "id": "bank-fee",
+      "score": 1.0,
+      "metrics": {
+        "numerical_accuracy": 1.0,
+        "contract_compliance": 1.0,
+        "validation_compliance": 1.0
+      },
+      "status": "success"
+    },
+    {
+      "id": "split-payment",
+      "score": 1.0,
+      "metrics": {
+        "numerical_accuracy": 1.0,
+        "contract_compliance": 1.0,
+        "validation_compliance": 1.0
+      },
+      "status": "success"
+    },
+    {
+      "id": "one-to-many-bank",
+      "score": 1.0,
+      "metrics": {
+        "numerical_accuracy": 1.0,
+        "contract_compliance": 1.0,
+        "validation_compliance": 1.0
+      },
+      "status": "success"
+    }
+  ]
+}

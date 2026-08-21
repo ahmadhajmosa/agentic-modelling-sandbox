@@ -1,0 +1,16 @@
+{
+  "schema_version": "ams/evaluation-v1",
+  "environment": "bank-reconciliation",
+  "candidate": "bank-recon-agent-candidate",
+  "split": "test",
+  "case_count": 2,
+  "score": 1.0,
+  "minimum_score": 0.9,
+  "accepted": true,
+  "metrics": [
+    "numerical_accuracy",
+    "contract_compliance",
+    "validation_compliance"
+  ],
+  "cases_hidden": true
+}
