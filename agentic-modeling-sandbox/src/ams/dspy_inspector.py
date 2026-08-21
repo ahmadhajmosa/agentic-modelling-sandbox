@@ -58,6 +58,36 @@ class DiscoveredSignature:
         }
 
 
+@dataclass
+class DiscoveredModule:
+    name: str
+    file: str
+    line: int
+    signature: str | None = None
+    forward_inputs: list[str] = field(default_factory=list)
+    has_forward: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "id": _snake_case(node_name=self.name),
+            "file": self.file,
+            "line": self.line,
+            "signature": self.signature,
+            "forward_inputs": self.forward_inputs,
+            "has_forward": self.has_forward,
+        }
+
+
+def _snake_case(*, node_name: str) -> str:
+    chars: list[str] = []
+    for index, char in enumerate(node_name):
+        if char.isupper() and index > 0 and (not node_name[index - 1].isupper()):
+            chars.append("_")
+        chars.append(char.lower())
+    return "".join(chars)
+
+
 def _dotted_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Name):
         return node.id
@@ -92,16 +122,39 @@ def _target_id(node: ast.AST) -> str | None:
     return None
 
 
+def _assignment_value_name(stmt: ast.stmt, target_name: str) -> str | None:
+    target: ast.AST | None = None
+    value: ast.AST | None = None
+    if isinstance(stmt, ast.Assign):
+        for candidate in stmt.targets:
+            if _target_id(candidate) == target_name:
+                target = candidate
+                value = stmt.value
+                break
+    elif isinstance(stmt, ast.AnnAssign):
+        if _target_id(stmt.target) == target_name:
+            target = stmt.target
+            value = stmt.value
+    if target is None or value is None:
+        return None
+    return _dotted_name(value) or (
+        value.value if isinstance(value, ast.Constant) and isinstance(value.value, str) else None
+    )
+
+
 class DSPyVisitor(ast.NodeVisitor):
     def __init__(self, rel_file: str):
         self.rel_file = rel_file
         self.class_stack: list[str] = []
         self.boundaries: list[DiscoveredBoundary] = []
         self.signatures: list[DiscoveredSignature] = []
+        self.modules: list[DiscoveredModule] = []
 
     def visit_ClassDef(self, node: ast.ClassDef):
         bases = {_dotted_name(b) for b in node.bases}
-        if any(b and b.split(".")[-1] == "Signature" for b in bases):
+        is_signature = any(b and b.split(".")[-1] == "Signature" for b in bases)
+        is_module = any(b and b.split(".")[-1] == "Module" for b in bases)
+        if is_signature:
             inputs: list[str] = []
             outputs: list[str] = []
             for stmt in node.body:
@@ -122,6 +175,31 @@ class DSPyVisitor(ast.NodeVisitor):
                 line=node.lineno,
                 inputs=inputs,
                 outputs=outputs,
+            ))
+
+        if is_module:
+            signature: str | None = None
+            forward_inputs: list[str] = []
+            has_forward = False
+            for stmt in node.body:
+                signature = signature or _assignment_value_name(stmt, "signature")
+                if isinstance(stmt, ast.FunctionDef):
+                    if stmt.name == "__init__":
+                        for nested in ast.walk(stmt):
+                            if isinstance(nested, (ast.Assign, ast.AnnAssign)):
+                                signature = signature or _assignment_value_name(nested, "signature")
+                    elif stmt.name == "forward":
+                        has_forward = True
+                        forward_inputs = [
+                            arg.arg for arg in stmt.args.args if arg.arg != "self"
+                        ]
+            self.modules.append(DiscoveredModule(
+                name=node.name,
+                file=self.rel_file,
+                line=node.lineno,
+                signature=signature,
+                forward_inputs=forward_inputs,
+                has_forward=has_forward,
             ))
 
         self.class_stack.append(node.name)
@@ -175,6 +253,7 @@ def inspect_candidate(workspace: str | Path) -> dict[str, Any]:
 
     boundaries: list[DiscoveredBoundary] = []
     signatures: list[DiscoveredSignature] = []
+    modules: list[DiscoveredModule] = []
     parse_errors: list[dict[str, Any]] = []
 
     for path in sorted(set(files)):
@@ -188,10 +267,12 @@ def inspect_candidate(workspace: str | Path) -> dict[str, Any]:
         visitor.visit(tree)
         boundaries.extend(visitor.boundaries)
         signatures.extend(visitor.signatures)
+        modules.extend(visitor.modules)
 
     return {
         "files_scanned": len(set(files)),
         "boundaries": [b.as_dict() for b in boundaries],
         "signatures": [s.as_dict() for s in signatures],
+        "modules": [m.as_dict() for m in modules],
         "parse_errors": parse_errors,
     }

@@ -3,6 +3,29 @@ from datetime import date
 from itertools import combinations
 from tools.recon import balance_proof, normalize_amount
 
+try:
+    import dspy
+except ImportError:
+    dspy = None
+
+
+if dspy is not None:
+    class ReconcileSignature(dspy.Signature):
+        bank: list[dict] = dspy.InputField()
+        gl: list[dict] = dspy.InputField()
+        matched_count: int = dspy.OutputField()
+        unmatched_bank_count: int = dspy.OutputField()
+        unmatched_gl_count: int = dspy.OutputField()
+        validation_passed: bool = dspy.OutputField()
+
+
+    class Reconcile(dspy.Module):
+        signature = ReconcileSignature
+
+        def forward(self, bank: list[dict], gl: list[dict]) -> dict:
+            return predict(bank, gl)
+
+
 def _days(a, b):
     return abs((date.fromisoformat(a)-date.fromisoformat(b)).days)
 

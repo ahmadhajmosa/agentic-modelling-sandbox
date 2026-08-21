@@ -1,0 +1,105 @@
+schema_version: ams/candidate-v1
+candidate_name: cold-start-reconciliation
+decomposition:
+  description: Monthly bank-to-GL reconciliation that creates auditable match groups, exception listings, and a balance proof. It uses deterministic accounting controls for amounts, dates, grouping, and validation, with an explicit typed memo-interpretation boundary for ambiguous descriptions, abbreviations, remittance advice, and reference disambiguation.
+  llm_modules:
+  - id: memo_interpreter
+    implementation: dspy.Predict
+    inputs:
+    - name: bank_description
+      type: string
+      description: Bank memo text exactly as supplied in the bank extract.
+    - name: gl_descriptions
+      type: list[string]
+      description: Candidate GL memo texts with equal amount or possible split total.
+    outputs:
+    - name: normalized_entities
+      type: list[string]
+      description: Merchant/customer names, aliases, and banking abbreviations normalized from memo text.
+    - name: references
+      type: list[string]
+      description: Invoice, order, remittance advice, and settlement references.
+    - name: exception_category
+      type: string
+      description: Suggested reconciling item category when a transaction is unmatched.
+    evaluation_metric: semantic_reference_accuracy
+    optimization_target: true
+  deterministic_components:
+  - id: transaction_normalizer
+    implementation: TransactionNormalizer
+    callable: tools.recon:normalize_amount
+    signature: TransactionNormalizerSignature
+    responsibility: Convert decimal transaction amounts to integer cents for exact accounting comparisons.
+    inputs:
+    - name: value
+      type: float
+    outputs:
+    - name: amount_cents
+      type: int
+  - id: date_window
+    implementation: DateWindow
+    callable: tools.recon:date_distance
+    signature: DateWindowSignature
+    responsibility: Calculate posting-date distance so matches can allow normal bank timing differences.
+    inputs:
+    - name: bank_date
+      type: string
+    - name: gl_date
+      type: string
+    outputs:
+    - name: days
+      type: int
+  - id: match_engine
+    implementation: MatchEngine
+    signature: MatchEngineSignature
+    responsibility: Produce one-to-one, date-tolerant, reversal, split, aggregation, and semantic-reference match groups.
+    inputs:
+    - name: bank
+      type: list[transaction]
+    - name: gl
+      type: list[transaction]
+    outputs:
+    - name: matches
+      type: list[match]
+    - name: exceptions
+      type: list[exception]
+  - id: balance_control
+    implementation: BalanceControl
+    callable: tools.recon:balance_proof
+    signature: BalanceControlSignature
+    responsibility: Prove that matched bank activity equals matched GL activity and quantify reconciling items.
+    inputs:
+    - name: bank
+      type: list[transaction]
+    - name: gl
+      type: list[transaction]
+    - name: matched_bank_ids
+      type: list[string]
+    - name: matched_gl_ids
+      type: list[string]
+    outputs:
+    - name: passed
+      type: bool
+    - name: totals
+      type: dict
+  control_flow: transaction_normalizer -> date_window -> memo_interpreter -> match_engine -> balance_control
+validation:
+  checks:
+  - balance_reconciles
+  - unmatched_items_reported
+evaluation:
+  end_to_end_metric: bank_reconciliation_score
+  module_metrics:
+    memo_interpreter: semantic_reference_accuracy
+optimization:
+  targets:
+  - memo_interpreter
+  - match_engine
+  optimizer: external
+  notes: Ambiguous same-day same-amount settlements and remittance split evidence require typed memo interpretation. Deterministic amount/date controls remain authoritative for calculations and balance proof.
+artifacts:
+  source_roots:
+  - src
+  test_roots:
+  - tests
+  entrypoint: src/entrypoint.py:predict

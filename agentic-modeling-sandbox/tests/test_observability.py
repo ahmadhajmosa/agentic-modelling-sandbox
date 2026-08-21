@@ -43,3 +43,7 @@ def test_markdown_report(tmp_path):
     md=render_markdown(s)
     assert '# AMS Observability Report' in md
     assert 'Current validation score' in md
+    assert '## Agent/AMS Interaction Timeline' in md
+    assert '## Composition Graph' in md
+    assert 'example_interpreter' in md
+    assert 'funded_ratio' in md

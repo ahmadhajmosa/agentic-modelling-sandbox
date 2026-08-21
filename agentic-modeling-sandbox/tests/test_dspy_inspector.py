@@ -17,6 +17,17 @@ class Program(dspy.Module):
     def __init__(self):
         super().__init__()
         self.example_interpreter = dspy.Predict(Interpret)
+
+class FundedRatioSignature(dspy.Signature):
+    asset_value: float = dspy.InputField()
+    liability_value: float = dspy.InputField()
+    funded_ratio: float = dspy.OutputField()
+
+class FundedRatio(dspy.Module):
+    signature = FundedRatioSignature
+
+    def forward(self, asset_value: float, liability_value: float):
+        return {"funded_ratio": asset_value / liability_value}
 """
 
 
@@ -35,6 +46,8 @@ def test_inspector_discovers_boundary_and_signature(tmp_path):
     assert report["boundaries"][0]["signature"] == "Interpret"
     assert report["signatures"][0]["inputs"] == ["request"]
     assert report["signatures"][0]["outputs"] == ["scenario"]
+    assert report["modules"][1]["name"] == "FundedRatio"
+    assert report["modules"][1]["signature"] == "FundedRatioSignature"
 
 
 def test_source_alignment_passes_for_declared_boundary(tmp_path):
@@ -67,6 +80,52 @@ def test_implementation_mismatch_is_rejected(tmp_path):
     report = validate_source_alignment(tmp_path)
     assert not report.valid
     assert any(i.rule == "LLM_IMPLEMENTATION_MISMATCH" for i in report.issues)
+
+
+def test_missing_declared_deterministic_dspy_module_is_rejected(tmp_path):
+    make_workspace(tmp_path)
+    p = tmp_path / "src" / "program.py"
+    p.write_text(DSPY_SOURCE.replace("class FundedRatio(dspy.Module):", "class WrongName(dspy.Module):"))
+    report = validate_source_alignment(tmp_path)
+    assert not report.valid
+    assert any(i.rule == "DECLARED_DSPY_MODULE_NOT_FOUND" for i in report.issues)
+
+
+def test_untyped_deterministic_dspy_signature_is_rejected(tmp_path):
+    make_workspace(tmp_path)
+    p = tmp_path / "src" / "program.py"
+    p.write_text("""
+import dspy
+
+class Interpret(dspy.Signature):
+    request: str = dspy.InputField()
+    scenario: str = dspy.OutputField()
+
+class Program(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.example_interpreter = dspy.Predict(Interpret)
+
+class FundedRatioSignature(dspy.Signature):
+    pass
+
+class FundedRatio(dspy.Module):
+    signature = FundedRatioSignature
+""")
+    report = validate_source_alignment(tmp_path)
+    assert not report.valid
+    assert any(i.rule == "DSPY_SIGNATURE_UNTYPED" for i in report.issues)
+
+
+def test_control_flow_cannot_name_undeclared_component(tmp_path):
+    make_workspace(tmp_path)
+    data = CANDIDATE_TEMPLATE.copy()
+    data["decomposition"] = CANDIDATE_TEMPLATE["decomposition"].copy()
+    data["decomposition"]["control_flow"] = "example_interpreter -> ghost"
+    dump_yaml(data, tmp_path / "candidate.yaml")
+    report = validate_source_alignment(tmp_path)
+    assert not report.valid
+    assert any(i.rule == "CONTROL_FLOW_UNKNOWN_COMPONENT" for i in report.issues)
 
 
 def test_inspection_does_not_import_or_execute_candidate(tmp_path):

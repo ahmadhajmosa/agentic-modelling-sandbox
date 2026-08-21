@@ -62,7 +62,18 @@ CANDIDATE_TEMPLATE = {
             }
         ],
         "deterministic_components": [
-            {"id": "funded_ratio", "callable": "tools.funding:calculate", "responsibility": "Calculate funded ratio deterministically."}
+            {
+                "id": "funded_ratio",
+                "implementation": "FundedRatio",
+                "signature": "FundedRatioSignature",
+                "inputs": [
+                    {"name": "asset_value", "type": "float"},
+                    {"name": "liability_value", "type": "float"},
+                ],
+                "outputs": [{"name": "funded_ratio", "type": "float"}],
+                "callable": "tools.funding:calculate",
+                "responsibility": "Calculate funded ratio deterministically.",
+            }
         ],
         "control_flow": "example_interpreter -> funded_ratio",
     },
@@ -119,6 +130,19 @@ if dspy is not None:
         def __init__(self):
             super().__init__()
             self.example_interpreter = dspy.Predict(InterpretScenario)
+
+
+    class FundedRatioSignature(dspy.Signature):
+        asset_value: float = dspy.InputField()
+        liability_value: float = dspy.InputField()
+        funded_ratio: float = dspy.OutputField()
+
+
+    class FundedRatio(dspy.Module):
+        signature = FundedRatioSignature
+
+        def forward(self, asset_value: float, liability_value: float) -> dict:
+            return calculate(asset_value, liability_value)
 
 
 def predict(asset_value: float, liability_value: float) -> dict:

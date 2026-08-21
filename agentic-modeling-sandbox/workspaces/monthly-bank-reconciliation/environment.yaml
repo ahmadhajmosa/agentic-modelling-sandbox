@@ -1,0 +1,67 @@
+schema_version: ams/v1
+environment:
+  name: bank-reconciliation
+  version: '0.1'
+  description: Bank-to-GL reconciliation environment with exact, date-tolerant, fee,
+    reversal, split, and aggregation cases.
+objective:
+  description: Build a reusable reconciliation program that matches bank transactions
+    to GL entries and explains unmatched/reconciling items.
+  success_definition: Correct matching and reconciliation across normal and edge cases,
+    with reproducible exceptions and balance proof.
+capabilities:
+- name: normalize_amount
+  callable: tools.recon:normalize_amount
+  description: Normalize transaction amounts to cents.
+  deterministic: true
+  tags:
+  - accounting
+  - reconciliation
+- name: date_distance
+  callable: tools.recon:date_distance
+  description: Calculate absolute days between ISO dates.
+  deterministic: true
+  tags:
+  - accounting
+  - matching
+- name: balance_proof
+  callable: tools.recon:balance_proof
+  description: Verify matched and unmatched amounts reconcile total bank and GL balances.
+  deterministic: true
+  tags:
+  - accounting
+  - control
+constraints:
+  execution:
+    network: false
+    timeout_seconds: 30
+    allowed_write_paths:
+    - src
+    - tests
+    - candidate.yaml
+    allowed_commands:
+    - python
+    - python3
+    - pytest
+    max_output_chars: 30000
+    max_file_bytes: 300000
+  decomposition:
+    require_explicit_llm_boundaries: false
+    require_typed_contracts: true
+    require_end_to_end_contract: true
+    deterministic_calculations_testable: true
+  validation:
+    required_checks:
+    - balance_reconciles
+    - unmatched_items_reported
+evaluation:
+  datasets:
+    train: evals/train.jsonl
+    validation: evals/validation.jsonl
+    test: evals/test.jsonl
+  metrics:
+  - numerical_accuracy
+  - contract_compliance
+  - validation_compliance
+  minimum_score: 0.9
+  protect_test_split: true

@@ -99,6 +99,10 @@ class LLMModuleDeclaration(StrictModel):
 
 class DeterministicComponent(StrictModel):
     id: str
+    implementation: str | None = None
+    signature: str | None = None
+    inputs: list[IOField] = Field(default_factory=list)
+    outputs: list[IOField] = Field(default_factory=list)
     callable: str | None = None
     responsibility: str
 
@@ -146,6 +150,16 @@ class CandidateManifest(StrictModel):
         unknown = set(self.evaluation.module_metrics) - declared
         if unknown:
             raise ValueError(f"module_metrics reference undeclared LLM modules: {sorted(unknown)}")
+        return self
+
+    @model_validator(mode="after")
+    def decomposition_ids_are_unique(self):
+        ids = [m.id for m in self.decomposition.llm_modules] + [
+            c.id for c in self.decomposition.deterministic_components
+        ]
+        duplicates = sorted({item for item in ids if ids.count(item) > 1})
+        if duplicates:
+            raise ValueError(f"decomposition component ids must be unique: {duplicates}")
         return self
 
 

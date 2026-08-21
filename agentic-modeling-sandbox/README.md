@@ -211,14 +211,18 @@ ams inspect-dspy . --json
 ams validate . --source --json
 ```
 
-The inspector discovers common DSPy LM boundaries (`Predict`, `ChainOfThought`, `ReAct`, `RLM`, `CodeAct`, `ProgramOfThought`) and `dspy.Signature` classes. Source-aware validation compares the discovered program with the agent-owned `candidate.yaml`.
+The inspector discovers common DSPy LM boundaries (`Predict`, `ChainOfThought`, `ReAct`, `RLM`, `CodeAct`, `ProgramOfThought`), `dspy.Module` classes, and `dspy.Signature` classes. Source-aware validation compares the discovered program with the agent-owned `candidate.yaml`.
 
 It enforces properties rather than architecture:
 
 - every discovered material DSPy boundary must be declared;
 - every declared LLM boundary must exist in source;
+- every declared deterministic component must exist as a `dspy.Module` when source validation is requested;
+- every discovered deterministic `dspy.Module` must be declared;
 - declared and implemented DSPy module types must agree;
 - discovered signatures should expose explicit input/output fields;
+- declared component contracts must match their DSPy signatures;
+- control flow may only reference declared components;
 - modules marked as optimization targets must appear in the candidate optimization declaration.
 
 AMS still does **not** decide which DSPy modules the agent should create.

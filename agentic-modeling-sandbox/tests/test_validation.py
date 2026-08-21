@@ -34,3 +34,23 @@ def test_missing_llm_metric_fails(tmp_path):
     report = validate_candidate(tmp_path / "environment.yaml", tmp_path / "candidate.yaml")
     assert not report.valid
     assert any(i.rule == "LLM_MODULE_EVALUATION" for i in report.issues)
+
+
+def test_deterministic_component_requires_typed_dspy_contract(tmp_path):
+    candidate = copy.deepcopy(CANDIDATE_TEMPLATE)
+    component = candidate["decomposition"]["deterministic_components"][0]
+    component["signature"] = None
+    component["inputs"] = []
+    setup_workspace(tmp_path, candidate)
+    report = validate_candidate(tmp_path / "environment.yaml", tmp_path / "candidate.yaml")
+    assert not report.valid
+    assert any(i.rule == "DETERMINISTIC_TYPED_CONTRACT" for i in report.issues)
+
+
+def test_control_flow_references_declared_components(tmp_path):
+    candidate = copy.deepcopy(CANDIDATE_TEMPLATE)
+    candidate["decomposition"]["control_flow"] = "example_interpreter -> ghost"
+    setup_workspace(tmp_path, candidate)
+    report = validate_candidate(tmp_path / "environment.yaml", tmp_path / "candidate.yaml")
+    assert not report.valid
+    assert any(i.rule == "CONTROL_FLOW_UNKNOWN_COMPONENT" for i in report.issues)

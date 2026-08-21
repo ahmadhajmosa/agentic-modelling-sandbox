@@ -101,9 +101,11 @@ HELP_TOPICS: dict[str, dict[str, Any]] = {
         "title": "DSPy",
         "summary": "AMS is DSPy-aware but does not prescribe a DSPy architecture.",
         "principles": [
-            "static AST inspection discovers common DSPy LM boundaries and signatures",
+            "static AST inspection discovers DSPy modules, signatures, and common LM boundaries",
             "candidate source is not imported or executed during inspection",
-            "discovered boundaries are compared with candidate.yaml declarations",
+            "declared deterministic components are compared with discovered dspy.Module classes",
+            "discovered deterministic dspy.Module classes must be declared",
+            "declared component contracts are compared with discovered dspy.Signature fields",
             "each material LLM boundary should be independently measurable and optimizable when declared as a target",
         ],
         "recommended_commands": ["ams inspect-dspy --json", "ams validate --source --json"],

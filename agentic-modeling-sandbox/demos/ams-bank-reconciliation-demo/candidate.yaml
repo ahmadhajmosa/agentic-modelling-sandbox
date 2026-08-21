@@ -5,6 +5,22 @@ decomposition:
   llm_modules: []
   deterministic_components:
   - id: reconcile
+    implementation: Reconcile
+    signature: ReconcileSignature
+    inputs:
+    - name: bank
+      type: list[dict]
+    - name: gl
+      type: list[dict]
+    outputs:
+    - name: matched_count
+      type: int
+    - name: unmatched_bank_count
+      type: int
+    - name: unmatched_gl_count
+      type: int
+    - name: validation_passed
+      type: bool
     callable: src/reconciliation.py:predict
     responsibility: Match bank and GL transactions and produce reconciliation results.
   control_flow: reconcile

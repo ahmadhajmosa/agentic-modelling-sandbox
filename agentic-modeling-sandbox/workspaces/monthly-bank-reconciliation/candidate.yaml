@@ -1,0 +1,86 @@
+schema_version: ams/candidate-v1
+candidate_name: monthly-bank-reconciliation
+decomposition:
+  description: Deterministic reconciliation process. Matching runs as ordered passes
+    of descending confidence, unmatched lines are classified into reconciling items,
+    and the environment's balance_proof capability certifies the result. No LLM is
+    used; month-end reconciliation must be reproducible and auditable.
+  llm_modules: []
+  deterministic_components:
+  - id: matching
+    implementation: Matching
+    signature: MatchingSignature
+    inputs:
+    - name: bank
+      type: list[Transaction]
+    - name: gl
+      type: list[Transaction]
+    outputs:
+    - name: matches
+      type: list[MatchGroup]
+    - name: unmatched_bank
+      type: list[Transaction]
+    - name: unmatched_gl
+      type: list[Transaction]
+    callable: src/reconciliation/matching.py:match_transactions
+    responsibility: Pair bank and ledger lines using exact, date-tolerant, split,
+      and aggregation rules with deterministic tie-breaking.
+  - id: exception_classification
+    implementation: ExceptionClassification
+    signature: ExceptionClassificationSignature
+    inputs:
+    - name: unmatched_bank
+      type: list[Transaction]
+    - name: unmatched_gl
+      type: list[Transaction]
+    - name: all_bank
+      type: list[Transaction]
+    - name: all_gl
+      type: list[Transaction]
+    outputs:
+    - name: exceptions
+      type: list[ReconcilingItem]
+    callable: src/reconciliation/exceptions.py:classify
+    responsibility: Explain every unmatched line as a reversal, bank fee, timing
+      difference, or unexplained item.
+  - id: controls
+    implementation: Controls
+    signature: ControlsSignature
+    inputs:
+    - name: bank_raw
+      type: list[dict]
+    - name: gl_raw
+      type: list[dict]
+    - name: result
+      type: ReconciliationResult
+    - name: unmatched_bank
+      type: list[Transaction]
+    - name: unmatched_gl
+      type: list[Transaction]
+    outputs:
+    - name: controls
+      type: list[ControlResult]
+    - name: balance_proof
+      type: dict
+    callable: src/reconciliation/report.py:run_controls
+    responsibility: Run the environment-required controls and capture the balance
+      proof as evidence.
+  control_flow: matching -> exception_classification -> controls
+validation:
+  checks:
+  - balance_reconciles
+  - unmatched_items_reported
+evaluation:
+  end_to_end_metric: bank_reconciliation_score
+  module_metrics: {}
+optimization:
+  targets: []
+  optimizer: external
+  notes: Deterministic process with no LLM boundary; there is nothing to optimize
+    with a prompt optimizer.
+artifacts:
+  source_roots:
+  - src
+  test_roots:
+  - tests
+  entrypoint: src/entrypoint.py:predict
