@@ -90,7 +90,7 @@ evals/             # environment-owned train/validation/test cases
 ### 3. Start Claude Code in the repo
 
 ```bash
-cd /path/to/agentic-modeling-sandbox
+cd /path/to/proj-pwc-ca-adv-agentic-modelling-sandbox
 claude
 ```
 
