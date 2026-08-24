@@ -33,6 +33,146 @@ Run tests:
 pytest
 ```
 
+## Using AMS with Claude Code
+
+Claude Code is a terminal coding agent from Anthropic that can inspect a
+codebase, edit files, run commands, and use local tools. The official quickstart
+documents the current install and login flow:
+
+- Claude Code quickstart: <https://code.claude.com/docs/en/quickstart>
+- Claude Code CLI reference: <https://code.claude.com/docs/en/cli-reference>
+
+AMS does not require a Claude-specific integration. Treat Claude Code as the
+external coding agent and make AMS the environment it must satisfy.
+
+### 1. Install AMS locally
+
+From this repository:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e . pytest
+ams --help
+```
+
+If you use the bundled Codex runtime while developing this repo, replace
+`python` with that runtime's Python. The important part is that `ams`, `pytest`,
+and the candidate workspace dependencies are on `PATH` for the terminal session
+Claude Code will control.
+
+### 2. Create or choose an AMS workspace
+
+To create a starter workspace:
+
+```bash
+ams init workspaces/my-modeling-task
+```
+
+Or use an existing workspace such as:
+
+```bash
+workspaces/monthly-bank-reconciliation
+workspaces/cold-start-llm-reconciliation
+```
+
+An AMS workspace should contain:
+
+```text
+environment.yaml   # environment-owned objective, tools, controls, datasets
+candidate.yaml     # agent-owned decomposition, contracts, metrics, entrypoint
+src/               # candidate implementation
+tests/             # candidate tests
+tools/             # environment-owned capabilities
+evals/             # environment-owned train/validation/test cases
+```
+
+### 3. Start Claude Code in the repo
+
+```bash
+cd /path/to/agentic-modeling-sandbox
+claude
+```
+
+Give Claude Code a task prompt that makes AMS the source of truth:
+
+```text
+You are working in an AMS workspace at workspaces/my-modeling-task.
+
+Use AMS to understand the objective, capabilities, controls, validation rules,
+evaluation protocol, and acceptance threshold. Do not assume the solution shape
+up front.
+
+Build or repair the candidate until:
+- ams validate --source passes,
+- ams test passes,
+- ams eval --split validation passes,
+- ams eval --split test --final passes when you are ready for final acceptance,
+- ams report --output ams-report.md generates the evidence report.
+
+Use the environment-owned controls and datasets. Do not edit environment.yaml,
+tools/, evals/, or .ams/. If semantic interpretation is required, declare an
+explicit typed LLM boundary in candidate.yaml and implement the corresponding
+DSPy source structure. If deterministic code is enough, still use declared
+DSPy modules and signatures for decomposition.
+
+At the end, explain the result in domain terms and cite the AMS evidence.
+```
+
+### 4. Commands Claude Code should run
+
+Claude Code can discover AMS through the CLI instead of relying on a hidden
+system prompt:
+
+```bash
+ams state workspaces/my-modeling-task --json
+ams rules workspaces/my-modeling-task --json
+ams capabilities workspaces/my-modeling-task --json
+ams schema candidate --json
+ams help decomposition --json
+ams guide workspaces/my-modeling-task --json
+```
+
+The normal build/repair loop is:
+
+```bash
+ams validate workspaces/my-modeling-task --source --json
+ams test workspaces/my-modeling-task --json
+ams eval workspaces/my-modeling-task --split validation --json
+ams eval workspaces/my-modeling-task --split test --final --json
+ams report workspaces/my-modeling-task --output workspaces/my-modeling-task/ams-report.md
+```
+
+Only run the protected final test when the visible validation evidence is good.
+AMS records held-out access in `.ams/heldout-access.json` and enforces the
+environment's final-evaluation budget.
+
+### 5. Optional project memory for Claude Code
+
+For repeat work, add a small `CLAUDE.md` at the repository root. Keep it short:
+
+```markdown
+# AMS project instructions
+
+- AMS is the environment/control plane. The coding agent owns candidate code.
+- Read `environment.yaml` before editing `candidate.yaml` or `src/`.
+- Do not edit `environment.yaml`, `tools/`, `evals/`, or `.ams/`.
+- Use `ams validate --source`, `ams test`, validation eval, final eval, and
+  `ams report` before claiming completion.
+- Source-aware validation must match declared DSPy modules, signatures, LLM
+  boundaries, deterministic components, and `control_flow`.
+```
+
+### 6. Security note
+
+AMS currently provides workspace policy, command allowlists, environment-file
+integrity checks, held-out protection, validation, and evaluation. The local
+runner is not a hardened OS sandbox: `network: false` is recorded but not
+kernel-enforced, and subprocess isolation depends on the host. For untrusted
+agent runs, put Claude Code and AMS inside a stronger execution sandbox such as
+a container, VM, or an OpenSandbox-style backend, then let AMS govern the
+domain rules and evidence inside that isolated runtime.
+
 ## Current scope
 
 V0.1 implements:
@@ -298,7 +438,7 @@ ams report .
 ams report . --output ams-report.md
 ```
 
-The observability summary covers action/status counts, policy failures, source alignment, current validation fitness, evaluation score history, recent failures, and optimization state. `ams report` renders this evidence as Markdown.
+The observability summary covers action/status counts, policy failures, source alignment, current validation fitness, evaluation score history, recent failures, and optimization state. `ams report` renders this evidence as Markdown, including an Agent/AMS interaction timeline and the declared composition graph.
 
 A real external-LLM loop is documented in `examples/external-llm-agent-loop.md`: a deliberately bad candidate scored 0.35, AMS returned structured feedback, the external LLM repaired it, and the candidate then scored 1.00 and passed tests.
 
